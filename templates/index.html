@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Structure Visualization</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        svg {
+            outline: 1px solid black;
+        }
+        .link {
+            stroke: #999;
+            stroke-opacity: 0.6;
+        }
+        .node text {
+            pointer-events: none;
+            font-size: 12px;
+        }
+        .node circle {
+            fill: #ffab00;
+            stroke: #fff;
+            stroke-width: 1.5px;
+        }
+    </style>
+</head>
+<body>
+<button id="toggleText">Toggle Text</button>
+
+<script>
+    const structure = `
+<Title> Towards General Computer Control: A Multimodal Agent for Red Dead Redemption II as a Case Study </Title>
+- <Topic 1> Introduction </Topic 1>
+    - <Subtopic 1-1> Existing foundation agents, powered by large models (LMs) and advanced tools, struggle to generalize across different scenarios due to variations in observations and actions. </Subtopic 1-1>
+    - <Subtopic 1-2> The paper proposes the General Computer Control (GCC) setting, aiming to build foundation agents capable of mastering any computer task. </Subtopic 1-2>
+    - <Subtopic 1-3> GCC agents take screen images (and possibly audio) as input and produce keyboard and mouse operations as output, mimicking human-computer interaction. </Subtopic 1-3>
+    - <Subtopic 1-4> The challenges of achieving GCC include multimodal observations, accurate control of keyboard and mouse, long-term memory and reasoning, and efficient exploration and self-improvement. </Subtopic 1-4>
+    - <Subtopic 1-5> The paper introduces CRADLE, an agent framework designed to address these challenges. </Subtopic 1-5>
+    - <Subtopic 1-6> CRADLE is deployed in the complex AAA game Red Dead Redemption II (RDR2) as a preliminary attempt towards GCC. </Subtopic 1-6>
+    - <Subtopic 1-7> The paper claims to be the first to enable LMM-based agents to follow the main storyline and complete real missions in complex AAA games with minimal reliance on prior knowledge or resources. </Subtopic 1-7>
+- <Topic 2> General Computer Control </Topic 2>
+    - <Subtopic 2-1> Definition: GCC is a setting where an agent controls a computer through standardized human-like interactions, using screen and audio as input and keyboard and mouse operations as output. </Subtopic 2-1>
+    - <Subtopic 2-2> GCC provides a universal interface to any computer-based task without access to application source code or APIs. </Subtopic 2-2>
+   
+    - <Subtopic 8-1> Implementation Details: The paper details the implementation of CRADLE, including information gathering, self-reflection, task inference, skill curation, action planning, action execution, procedural memory, and episodic memory. </Subtopic 8-1>
+    - <Subtopic 8-2> Application Target and Setting Challenges: The paper discusses challenges specific to RDR2, such as model latency, game pause, mouse modes, and multi-episodes. </Subtopic 8-2>
+    - <Subtopic 8-3> Cradle Prompts: The paper provides detailed prompts used for different modules of CRADLE, including information gathering, situation information, information summary, and action planning. </Subtopic 8-3>
+`;
+
+    function parseStructure(structure) {
+        const nodes = [{ id: 'Title Graph-based Reranking with AMR for Open-Domain Question Answering', group: 'Title' }]; // Add title only once here
+        const links = [];
+        let lastTopicId = null;
+
+        structure.match(/<([^>]+)>\s*([^<]+)\s*<\/\1>/g).forEach(element => {
+            const [_, tag, text] = element.match(/<([^>]+)>\s*([^<]+)\s*<\/\1>/);
+            const type = tag.trim();
+            const name = text.trim();
+            const id = `${type} ${name}`;
+
+            if (!nodes.some(n => n.id === id)) { // Prevent duplicate nodes
+                nodes.push({ id: id, group: type });
+                if (type.startsWith('Topic')) {
+                    links.push({ source: id, target: 'Title Graph-based Reranking with AMR for Open-Domain Question Answering' });
+                    lastTopicId = id;
+                } else if (type.startsWith('Subtopic')) {
+                    links.push({ source: id, target: lastTopicId });
+                }
+            }
+        });
+
+        return { nodes, links };
+    }
+
+    const graphData = parseStructure(structure);
+
+    const width = 2000, height = 1000;
+    const svg = d3.select('body').append('svg')
+        .attr('width', width)
+        .attr('height', height)
+        .call(d3.zoom().on("zoom", (event) => {
+            g.attr("transform", event.transform);
+        }))
+        .append("g");
+
+    const g = svg.append("g");
+
+    const simulation = d3.forceSimulation(graphData.nodes)
+        .force('link', d3.forceLink(graphData.links).id(d => d.id).distance(100).strength(0.3))
+        .force('charge', d3.forceManyBody().strength(-500))
+        .force('center', d3.forceCenter(width / 3, height / 2))
+        .on('tick', ticked);
+
+    const link = g.selectAll(".link")
+        .data(graphData.links)
+        .enter().append("line")
+        .attr("class", "link");
+
+    const node = g.selectAll(".node")
+        .data(graphData.nodes)
+        .enter().append("g")
+        .attr("class", "node")
+        .call(d3.drag()
+            .on("start", dragstarted)
+            .on("drag", dragged)
+            .on("end", dragended));
+
+    node.append("circle")
+        .attr("r", 10);
+
+    const text = node.append("text")
+        .attr("dx", 15)
+        .attr("dy", ".35em")
+        .text(d => d.id.replace(/^[^ ]+ /, '')); // Simplify labels by removing type prefix
+
+    function ticked() {
+        link.attr("x1", d => d.source.x)
+            .attr("y1", d => d.source.y)
+            .attr("x2", d => d.target.x)
+            .attr("y2", d => d.target.y);
+
+        node.attr("transform", d => `translate(${d.x},${d.y})`);
+    }
+
+    function dragstarted(event, d) {
+        if (!event.active) simulation.alphaTarget(0.1).restart();
+        d.fx = d.x;
+        d.fy = d.y;
+    }
+
+    function dragged(event, d) {
+        d.fx = event.x;
+        d.fy = event.y;
+    }
+
+    function dragended(event, d) {
+        if (!event.active) simulation.alphaTarget(0);
+        d.fx = null;
+        d.fy = null;
+    }
+      // Toggle visibility of node text
+    document.getElementById("toggleText").addEventListener("click", () => {
+        const visibility = text.style("visibility") === "hidden" ? "visible" : "hidden";
+        text.style("visibility", visibility);
+    });
+</script>
+</body>
+</html>
